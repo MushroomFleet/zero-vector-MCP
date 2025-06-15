@@ -65,7 +65,7 @@ export const getSystemHealth = {
       logger.info('Health check completed', { status: healthData.status });
 
       let resultText = `🏥 **Zero-Vector Server Health**\n\n`;
-      resultText += `📊 **Status:** ${healthData.status === 'healthy' ? '🟢 Healthy' : '🔴 Unhealthy'}\n`;
+      resultText += `📊 **Status:** ${(healthData.status === 'healthy' || healthData.status === 'ok') ? '🟢 Healthy' : '🔴 Unhealthy'}\n`;
       resultText += `⏰ **Timestamp:** ${formatTimestamp(healthData.timestamp, 'iso')}\n`;
       
       if (healthData.uptime) {
@@ -108,12 +108,12 @@ export const getSystemHealth = {
         }
       }
 
-      if (detailed && healthData.performance) {
+      if (healthData.performance) {
         const perf = healthData.performance;
         resultText += `\n⚡ **Performance:**\n`;
         resultText += `• Avg Response Time: ${perf.avgResponseTime}ms\n`;
         resultText += `• Requests/min: ${perf.requestsPerMinute}\n`;
-        if (perf.searchPerformance) {
+        if (detailed && perf.searchPerformance) {
           resultText += `• Avg Search Time: ${perf.searchPerformance.avgTime}ms\n`;
         }
       }
