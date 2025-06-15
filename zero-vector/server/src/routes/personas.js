@@ -404,11 +404,28 @@ router.post('/:id/memories/search', asyncHandler(async (req, res) => {
       includeContext: includeContext === true || includeContext === 'true'
     };
 
+    logger.info('About to call retrieveRelevantMemories from API route', {
+      personaId: id,
+      query: query.trim().substring(0, 50),
+      searchOptions
+    });
+
     const memories = await req.personaMemoryManager.retrieveRelevantMemories(
       id,
       query.trim(),
       searchOptions
     );
+
+    logger.info('retrieveRelevantMemories returned from API route', {
+      personaId: id,
+      resultCount: memories.length,
+      sampleMemory: memories.length > 0 ? {
+        id: memories[0].id,
+        hasMetadata: !!memories[0].metadata,
+        metadataKeys: memories[0].metadata ? Object.keys(memories[0].metadata) : [],
+        hasOriginalContent: !!(memories[0].metadata && memories[0].metadata.originalContent)
+      } : null
+    });
 
     logger.info('Persona memory search completed via API', {
       personaId: id,

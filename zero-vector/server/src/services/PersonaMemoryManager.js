@@ -327,6 +327,12 @@ class PersonaMemoryManager {
    */
   async retrieveRelevantMemories(personaId, query, options = {}) {
     try {
+      logger.info('Starting retrieveRelevantMemories', {
+        personaId,
+        query: query.substring(0, 50),
+        options
+      });
+
       const {
         limit = 5,
         threshold = 0.7,
@@ -386,22 +392,85 @@ class PersonaMemoryManager {
       // Limit final results
       filteredResults = filteredResults.slice(0, limit);
 
+      // Debug: Log what we got from vector search before enrichment
+      logger.info('Vector search results before enrichment', {
+        personaId,
+        resultCount: filteredResults.length,
+        sampleResults: filteredResults.slice(0, 2).map(r => ({
+          id: r.id,
+          similarity: r.similarity,
+          hasMetadata: !!r.metadata,
+          metadataKeys: r.metadata ? Object.keys(r.metadata) : [],
+          hasOriginalContent: !!(r.metadata && r.metadata.originalContent),
+          originalContentPreview: r.metadata && r.metadata.originalContent ? 
+            r.metadata.originalContent.substring(0, 50) + '...' : 'MISSING'
+        }))
+      });
+
       // Enrich with database metadata if needed
       if (includeContext) {
         for (const result of filteredResults) {
           try {
-            const dbMetadata = await this.database.getVectorMetadata(result.id);
-            if (dbMetadata) {
-              result.metadata = { ...result.metadata, ...dbMetadata.customMetadata };
+            // First check if originalContent is already available from vector store
+            if (!result.metadata.originalContent) {
+              logger.info('Missing originalContent in vector metadata, fetching from database', {
+                memoryId: result.id,
+                vectorMetadataKeys: Object.keys(result.metadata || {})
+              });
+              
+              const dbMetadata = await this.database.getVectorMetadata(result.id);
+              if (dbMetadata && dbMetadata.customMetadata) {
+                // Merge the custom metadata which contains originalContent
+                result.metadata = { 
+                  ...result.metadata, 
+                  ...dbMetadata.customMetadata,
+                  // Ensure originalContent is directly accessible
+                  originalContent: dbMetadata.customMetadata.originalContent
+                };
+                
+                logger.info('Enriched memory metadata from database', {
+                  memoryId: result.id,
+                  hasOriginalContent: !!dbMetadata.customMetadata.originalContent,
+                  customMetadataKeys: Object.keys(dbMetadata.customMetadata || {}),
+                  originalContentLength: dbMetadata.customMetadata.originalContent ? 
+                    dbMetadata.customMetadata.originalContent.length : 0
+                });
+              } else {
+                logger.warn('No database metadata found for memory', {
+                  memoryId: result.id,
+                  dbMetadata: !!dbMetadata,
+                  hasCustomMetadata: !!(dbMetadata && dbMetadata.customMetadata)
+                });
+              }
+            } else {
+              logger.info('originalContent already present in vector metadata', {
+                memoryId: result.id,
+                originalContentLength: result.metadata.originalContent.length
+              });
             }
           } catch (error) {
-            logger.warn('Failed to fetch metadata for memory', {
+            logger.error('Failed to fetch metadata for memory', {
               memoryId: result.id,
-              error: error.message
+              error: error.message,
+              stack: error.stack
             });
           }
         }
       }
+
+      // Debug: Log final results after enrichment
+      logger.info('Final enriched results', {
+        personaId,
+        resultCount: filteredResults.length,
+        sampleResults: filteredResults.slice(0, 2).map(r => ({
+          id: r.id,
+          similarity: r.similarity,
+          hasOriginalContent: !!(r.metadata && r.metadata.originalContent),
+          originalContentPreview: r.metadata && r.metadata.originalContent ? 
+            r.metadata.originalContent.substring(0, 50) + '...' : 'STILL MISSING',
+          metadataKeys: r.metadata ? Object.keys(r.metadata) : []
+        }))
+      });
 
       logger.info('Retrieved relevant memories', {
         personaId,
@@ -652,6 +721,114 @@ class PersonaMemoryManager {
         operation: 'enforceMemoryLimits',
         personaId
       });
+    }
+  }
+
+  /**
+   * Reload all existing memories from database into vector store
+   * This is essential for server restart scenarios
+   */
+  async reloadMemoriesFromDatabase() {
+    try {
+      logger.info('Starting memory reload from database...');
+      
+      // Get all vector metadata from database
+      const allMemories = await this.database.searchVectorMetadata({ limit: 50000 });
+      
+      if (!allMemories || allMemories.length === 0) {
+        logger.info('No existing memories found in database');
+        return { reloaded: 0, errors: 0 };
+      }
+      
+      logger.info('Found memories in database, starting reload process', {
+        totalMemories: allMemories.length
+      });
+      
+      let reloadedCount = 0;
+      let errorCount = 0;
+      
+      // Process memories in batches to avoid overwhelming the system
+      const batchSize = 50;
+      for (let i = 0; i < allMemories.length; i += batchSize) {
+        const batch = allMemories.slice(i, i + batchSize);
+        
+        logger.info(`Processing memory batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allMemories.length/batchSize)}`, {
+          batchStart: i,
+          batchSize: batch.length
+        });
+        
+        for (const memoryRecord of batch) {
+          try {
+            const customMeta = memoryRecord.customMetadata || {};
+            const originalContent = customMeta.originalContent;
+            
+            if (!originalContent) {
+              logger.warn('Memory missing originalContent, skipping', {
+                memoryId: memoryRecord.id,
+                availableKeys: Object.keys(customMeta)
+              });
+              errorCount++;
+              continue;
+            }
+            
+            // Get persona to determine embedding configuration
+            const persona = await this.database.getPersonaById(memoryRecord.persona_id);
+            if (!persona) {
+              logger.warn('Persona not found for memory, skipping', {
+                memoryId: memoryRecord.id,
+                personaId: memoryRecord.persona_id
+              });
+              errorCount++;
+              continue;
+            }
+            
+            // Generate embedding for the content
+            const embeddingResult = await this.embeddingService.generateEmbedding(originalContent, {
+              provider: persona.config.embeddingProvider || 'local',
+              model: persona.config.embeddingModel,
+              useCache: false // Don't use cache during reload
+            });
+            
+            // Add vector back to vector store
+            await this.vectorStore.addVector(
+              embeddingResult.vector,
+              memoryRecord.id,
+              customMeta
+            );
+            
+            reloadedCount++;
+            
+            if (reloadedCount % 10 === 0) {
+              logger.info(`Reloaded ${reloadedCount}/${allMemories.length} memories...`);
+            }
+            
+          } catch (error) {
+            logger.error('Failed to reload memory', {
+              memoryId: memoryRecord.id,
+              error: error.message
+            });
+            errorCount++;
+          }
+        }
+        
+        // Small delay between batches to prevent overwhelming
+        if (i + batchSize < allMemories.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      logger.info('Memory reload from database completed', {
+        totalFound: allMemories.length,
+        reloaded: reloadedCount,
+        errors: errorCount,
+        vectorStoreCount: this.vectorStore.vectorCount
+      });
+      
+      return { reloaded: reloadedCount, errors: errorCount };
+      
+    } catch (error) {
+      logError(error, { operation: 'reloadMemoriesFromDatabase' });
+      throw error;
     }
   }
 

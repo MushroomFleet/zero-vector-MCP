@@ -27,6 +27,11 @@ const personaRoutes = require('./routes/personas');
 const healthRoutes = require('./routes/health');
 const createAuthRoutes = require('./routes/auth');
 
+// Import memory management services
+const EmbeddingService = require('./services/embedding/EmbeddingService');
+const LocalTransformersProvider = require('./services/embedding/LocalTransformersProvider');
+const PersonaMemoryManager = require('./services/PersonaMemoryManager');
+
 /**
  * Zero-Vector Server
  * Main application entry point
@@ -133,6 +138,52 @@ class ZeroVectorServer {
     this.app.set('vectorStore', this.vectorStore);
 
     logger.info('Vector store initialized successfully');
+
+    // Reload existing memories from database
+    await this.reloadExistingMemories();
+  }
+
+  /**
+   * Reload existing memories from database into vector store
+   * This ensures memories persist across server restarts
+   */
+  async reloadExistingMemories() {
+    try {
+      logger.info('Checking for existing memories to reload...');
+
+      // Initialize embedding service with proper providers
+      const embeddingService = new EmbeddingService();
+      
+      // Register the local transformer provider
+      const localProvider = new LocalTransformersProvider();
+      embeddingService.registerProvider('local', localProvider);
+      embeddingService.setDefaultProvider('local');
+      
+      // Initialize persona memory manager for reload functionality
+      const memoryManager = new PersonaMemoryManager(
+        this.database,
+        this.vectorStore,
+        embeddingService
+      );
+
+      // Reload memories from database
+      const reloadResult = await memoryManager.reloadMemoriesFromDatabase();
+
+      if (reloadResult.reloaded > 0) {
+        logger.info('Memory reload completed successfully', {
+          reloaded: reloadResult.reloaded,
+          errors: reloadResult.errors,
+          vectorStoreCount: this.vectorStore.vectorCount
+        });
+      } else {
+        logger.info('No existing memories found to reload');
+      }
+
+    } catch (error) {
+      // Log error but don't fail server startup
+      logError(error, { operation: 'reloadExistingMemories' });
+      logger.warn('Memory reload failed, but server will continue with empty vector store');
+    }
   }
 
   /**
