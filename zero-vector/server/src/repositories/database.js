@@ -783,13 +783,23 @@ class DatabaseRepository {
     const fields = [];
     const values = [];
     
+    // Map camelCase API fields to snake_case database columns
+    const fieldMapping = {
+      'systemPrompt': 'system_prompt',
+      'maxMemorySize': 'max_memory_size',
+      'memoryDecayTime': 'memory_decay_time'
+    };
+    
     Object.keys(updates).forEach(key => {
       if (key !== 'id') {
+        // Get the database column name (either mapped or original)
+        const dbField = fieldMapping[key] || key;
+        
         if (key === 'config') {
-          fields.push(`${key} = ?`);
+          fields.push(`${dbField} = ?`);
           values.push(JSON.stringify(updates[key]));
         } else {
-          fields.push(`${key} = ?`);
+          fields.push(`${dbField} = ?`);
           values.push(updates[key]);
         }
       }
