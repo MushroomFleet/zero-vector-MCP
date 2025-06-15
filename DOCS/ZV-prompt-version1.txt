@@ -1,0 +1,7 @@
+using deep research we can design a fully working standalone vector database server using npm and an admin management interface React UI built on electron with HTML5 and tailwind fontawesome.
+
+write a document for the development team named "vector-logic.md" which will be used to build out the first fully working version externally.
+
+We can create the admin management UI in react with node.js HTML5 and tailwind, which is used to manage the profiles used in the vector database to store relationships. This Vector database is intended for use by other apps through of an API.
+
+the API can generate keys, and store or retrieve memories written to the vector database. We aim to enable access to an AI LLM persona, by making long term memory storage both remote and model agnostic.

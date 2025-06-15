@@ -1,0 +1,37 @@
+we can create a detailed plan with code examples, file structure and development instructions in a document named "DEVTEAM-HANDOFF.md" while we work on planning the first fully working version of "zero-vector-2"
+
+Zero Vector 2 is a Vector-Graph hybrid server, which improves over the previous pure vector database method.
+
+Vector-Graph combines Vector database with Knowledge graph. A knowledge graph augmented with vector search capabilities.
+1. graph database (graph traversal)
+2. vector database (semantic search)
+
+by combining the "what" (semantic meaning) with the "who, when, why" (contextual relationships) we create a memory system that closely mirrors the associative and contextual nature of human memory.
+
+this system will feature a single Persona that will develop and evolve over time as it's memories increase in complexity. This system provides an API to apps that allows access to that persona and it's character.
+
+We aim to expose endpoints such as:
+
+**### Health Endpoints
+
+GET /health
+Basic health check
+GET /health/detailed
+Detailed performance metrics
+GET /health/ready
+Readiness probe
+GET /health/live
+Liveness probe
+GET /health/metrics
+Prometheus-style metrics**
+The following tools will be used by an MCP server built to communicate with zero vector 2 using this API. endpoints will need to be created in the zero vector server to ensure correct communication.
+
+### Memory Management (5 tools) 
+- add_memory - Add memories to personas with context and importance 
+- search_memory - Semantic search through persona memories 
+- add_conversation - Add user/assistant conversation exchanges
+- cleanup_memories - Clean up old or low-importance memories
+
+we can do deep research to provide the dev team with the most reliable code to build the first fully working version paying attention to the vector graph hybrid. We will be keeping it simple, providing only the minimum required to reach release candidate for alpha testing.
+
+we will use CLI tools, without the need for a UI. We will build the MCP server separately and externally from the finished "zero vector 2" server
