@@ -228,11 +228,38 @@ export const searchPersonaMemories = {
         resultText += `• **Type:** ${memory.metadata.memoryType}\n`;
         resultText += `• **Importance:** ${memory.metadata.importance}\n`;
         
-        // Show content preview
-        const content = memory.metadata.content || memory.content;
-        if (content) {
+        // Show content preview - check multiple possible field locations
+        // The PersonaMemoryManager stores content in metadata.originalContent after database enrichment
+        const content = memory.metadata?.originalContent || 
+                       memory.metadata?.content || 
+                       memory.content || 
+                       (memory.metadata?.customMetadata?.originalContent);
+        
+        if (content && typeof content === 'string' && content.trim().length > 0) {
           const preview = content.length > 150 ? content.substring(0, 150) + '...' : content;
           resultText += `• **Content:** ${preview}\n`;
+        } else {
+          // Debug info to help identify the issue
+          const metadataKeys = memory.metadata ? Object.keys(memory.metadata) : ['no metadata'];
+          resultText += `• **Content:** [Content not found]\n`;
+          resultText += `• **Debug - Available fields:** ${metadataKeys.join(', ')}\n`;
+          
+          // Show a sample of what's in metadata for troubleshooting
+          if (memory.metadata && Object.keys(memory.metadata).length > 0) {
+            const sampleValue = memory.metadata[metadataKeys[0]];
+            resultText += `• **Debug - Sample value:** ${typeof sampleValue} ${JSON.stringify(sampleValue).substring(0, 50)}...\n`;
+          }
+          
+          // Log additional debug info
+          logger.debug('Memory content debug', {
+            memoryId: memory.id,
+            hasMetadata: !!memory.metadata,
+            metadataKeys: metadataKeys,
+            hasOriginalContent: !!(memory.metadata?.originalContent),
+            hasContent: !!(memory.metadata?.content),
+            hasCustomMetadata: !!(memory.metadata?.customMetadata),
+            fullMetadata: JSON.stringify(memory.metadata).substring(0, 200)
+          });
         }
         
         if (memory.metadata.timestamp) {
