@@ -1,0 +1,70 @@
+{
+  "name": "zero-vector-server",
+  "version": "1.0.0",
+  "description": "Standalone vector database server with AI persona memory management",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "setup:database": "node scripts/setup-database.js",
+    "generate:api-key": "node scripts/generate-api-key.js",
+    "generate:mcp-key": "node scripts/generate-api-key.js --name \"Zero-Vector MCP Key\" --permissions \"read,write,vectors:read,vectors:write,personas:read,personas:write\" --rate-limit 2000 --expires-in-days 365"
+  },
+  "keywords": [
+    "vector-database",
+    "ai",
+    "embeddings",
+    "similarity-search",
+    "nodejs"
+  ],
+  "author": "Zero-Vector Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^9.2.2",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^7.1.5",
+    "joi": "^17.11.0",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1",
+    "dotenv": "^16.3.1",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.4",
+    "openai": "^4.20.1",
+    "@xenova/transformers": "^2.8.0",
+    "ml-matrix": "^6.10.4",
+    "redis": "^4.6.12",
+    "rate-limit-redis": "^4.2.0",
+    "validator": "^13.11.0",
+    "cookie-parser": "^1.4.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "eslint": "^8.55.0",
+    "eslint-config-standard": "^17.1.0",
+    "supertest": "^6.3.3",
+    "@types/jest": "^29.5.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  }
+}
