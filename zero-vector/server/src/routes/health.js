@@ -1,6 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { logger } = require('../utils/logger');
+const { performanceStatsService } = require('../services/PerformanceStatsService');
 
 const router = express.Router();
 
@@ -36,6 +37,9 @@ router.get('/', asyncHandler(async (req, res) => {
     logger.error('Vector store health check failed', { error: error.message });
   }
 
+  // Get performance metrics
+  const performanceMetrics = performanceStatsService.getMetrics();
+
   const healthCheck = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -51,6 +55,10 @@ router.get('/', asyncHandler(async (req, res) => {
       nodeVersion: process.version,
       memory: process.memoryUsage(),
       pid: process.pid
+    },
+    performance: {
+      avgResponseTime: performanceMetrics.avgResponseTime,
+      requestsPerMinute: performanceMetrics.requestsPerMinute
     },
     responseTime: Date.now() - startTime
   };
@@ -96,6 +104,9 @@ router.get('/detailed', asyncHandler(async (req, res) => {
   const memUsage = process.memoryUsage();
   const cpuUsage = process.cpuUsage();
   
+  // Get detailed performance statistics
+  const detailedPerfStats = performanceStatsService.getDetailedStats();
+  
   const detailedHealth = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -107,6 +118,8 @@ router.get('/detailed', asyncHandler(async (req, res) => {
       environment: process.env.NODE_ENV || 'development'
     },
     performance: {
+      avgResponseTime: detailedPerfStats.current.avgResponseTime,
+      requestsPerMinute: detailedPerfStats.current.requestsPerMinute,
       memory: {
         rss: Math.round(memUsage.rss / 1024 / 1024), // MB
         heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // MB
@@ -117,7 +130,10 @@ router.get('/detailed', asyncHandler(async (req, res) => {
       cpu: {
         user: cpuUsage.user,
         system: cpuUsage.system
-      }
+      },
+      requests: detailedPerfStats.current,
+      timeWindows: detailedPerfStats.timeWindows,
+      responseTimePercentiles: detailedPerfStats.responseTimePercentiles
     },
     services: {
       database: dbStats,
