@@ -1,0 +1,55 @@
+{
+  "name": "zero-vector-mcp-clean",
+  "version": "1.0.0",
+  "description": "Streamlined MCP server for Zero-Vector persona and memory management",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "test:connection": "node src/index.js --test-connection",
+    "list:tools": "node src/index.js --list-tools",
+    "version": "node src/index.js --version"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol", 
+    "zero-vector",
+    "ai-memory",
+    "persona-management",
+    "semantic-search"
+  ],
+  "author": "Zero-Vector MCP",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
+    "joi": "^17.11.0",
+    "winston": "^3.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "mcp": {
+    "name": "zero-vector-mcp-clean",
+    "description": "Streamlined MCP server for Zero-Vector persona and memory management",
+    "version": "1.0.0",
+    "tools": [
+      "create_persona",
+      "list_personas", 
+      "get_persona",
+      "update_persona",
+      "delete_persona",
+      "add_memory",
+      "search_persona_memories",
+      "add_conversation",
+      "get_conversation_history", 
+      "cleanup_persona_memories",
+      "get_system_health",
+      "get_persona_stats",
+      "test_connection"
+    ]
+  }
+}
