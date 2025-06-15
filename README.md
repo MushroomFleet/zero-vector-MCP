@@ -77,9 +77,9 @@ npm run generate:api-key  # Generate API key for MCP
 npm start
 
 # 2. Set up the MCP server (in a new terminal)
-cd ../../MCP
+cd MCP
 npm install
-cp .env.example .env
+cp env.example .env
 # Edit .env with your Zero-Vector server URL and API key
 npm start
 ```
