@@ -1,4 +1,5 @@
 const { logPerformance, logger } = require('../utils/logger');
+const { performanceStatsService } = require('../services/PerformanceStatsService');
 
 /**
  * Performance Monitoring Middleware
@@ -45,6 +46,9 @@ const performanceMiddleware = (req, res, next) => {
 
     // Log performance metric
     logPerformance(`${req.method} ${req.url}`, duration, performanceData);
+
+    // Record request in performance stats service
+    performanceStatsService.recordRequest(performanceData);
   });
 
   // Track memory usage periodically
