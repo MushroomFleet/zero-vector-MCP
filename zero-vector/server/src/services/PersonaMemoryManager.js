@@ -43,7 +43,7 @@ class PersonaMemoryManager {
           temperature: temperature,
           maxTokens: maxTokens,
           embeddingProvider: personaData.embeddingProvider || 'local',
-          embeddingModel: personaData.embeddingModel || 'all-MiniLM-L6-v2',
+          embeddingModel: personaData.embeddingModel || 'text-embedding-3-small',
           memoryRetrievalThreshold: memoryRetrievalThreshold,
           ...personaData.config
         },
@@ -254,9 +254,12 @@ class PersonaMemoryManager {
       }
 
       // Generate embedding for the content
+      const provider = persona.config.embeddingProvider || 'local';
+      const model = persona.config.embeddingModel || (provider === 'openai' ? 'text-embedding-3-small' : 'all-MiniLM-L6-v2');
+      
       const embeddingResult = await this.embeddingService.generateEmbedding(content, {
-        provider: persona.config.embeddingProvider || 'local',
-        model: persona.config.embeddingModel,
+        provider: provider,
+        model: model,
         useCache: true
       });
 
@@ -347,9 +350,12 @@ class PersonaMemoryManager {
       }
 
       // Generate query embedding
+      const provider = persona.config.embeddingProvider || 'local';
+      const model = persona.config.embeddingModel || (provider === 'openai' ? 'text-embedding-3-small' : 'all-MiniLM-L6-v2');
+      
       const queryEmbedding = await this.embeddingService.generateEmbedding(query, {
-        provider: persona.config.embeddingProvider || 'local',
-        model: persona.config.embeddingModel,
+        provider: provider,
+        model: model,
         useCache: true
       });
 

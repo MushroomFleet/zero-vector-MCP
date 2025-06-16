@@ -163,6 +163,52 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * Get global persona statistics
+ * GET /api/personas/_stats
+ */
+router.get('/_stats', asyncHandler(async (req, res) => {
+  try {
+    // Get all personas for the user
+    const personas = await req.personaMemoryManager.listPersonas(req.user.id, true);
+    
+    // Calculate aggregate statistics
+    let totalPersonas = personas.length;
+    let activePersonas = personas.filter(p => p.isActive).length;
+    let totalMemories = 0;
+    let memoryTypeBreakdown = {};
+    
+    // Aggregate stats from all personas
+    for (const persona of personas) {
+      if (persona.memoryStats) {
+        totalMemories += persona.memoryStats.totalMemories || 0;
+        
+        // Merge memory type breakdowns
+        const breakdown = persona.memoryStats.memoryTypeBreakdown || {};
+        Object.keys(breakdown).forEach(type => {
+          memoryTypeBreakdown[type] = (memoryTypeBreakdown[type] || 0) + breakdown[type];
+        });
+      }
+    }
+
+    const globalStats = {
+      totalPersonas,
+      activePersonas,
+      totalMemories,
+      memoryTypeBreakdown,
+      averageMemoriesPerPersona: totalPersonas > 0 ? (totalMemories / totalPersonas).toFixed(1) : 0
+    };
+
+    res.json({
+      status: 'success',
+      data: globalStats
+    });
+
+  } catch (error) {
+    throw error;
+  }
+}));
+
+/**
  * Get specific persona
  * GET /api/personas/:id
  */
