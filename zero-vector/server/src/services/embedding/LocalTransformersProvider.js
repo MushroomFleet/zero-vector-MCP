@@ -1,86 +1,81 @@
 const { logger, logError } = require('../../utils/logger');
+const OpenAI = require('openai');
 
 /**
- * Local Transformers Provider
- * Uses local sentence transformers for embedding generation
- * Fallback implementation when external libraries are not available
+ * OpenAI Embedding Provider (Local Configuration)
+ * Uses OpenAI's text-embedding-3-small model for all embedding generation
+ * This is the primary and only supported embedding provider
  */
 class LocalTransformersProvider {
   constructor(options = {}) {
-    this.model = options.model || 'text-embedding-3-small';
-    // Default to 1536 dimensions to match OpenAI embeddings
-    this.dimensions = options.dimensions || 1536;
-    this.supportsDimensions = true; // Enable dimension configuration
-    this.supportsNormalization = true;
-    this.isLoaded = false;
-    this.transformer = null;
+    this.apiKey = options.apiKey || process.env.OPENAI_API_KEY;
+    this.model = 'text-embedding-3-small'; // Fixed model as per requirements
+    this.dimensions = 1536; // Fixed dimensions for text-embedding-3-small
+    this.supportsDimensions = false; // We use fixed dimensions
+    this.supportsNormalization = false; // OpenAI embeddings are already normalized
+    this.maxTokens = 8191;
+    this.maxBatchSize = 2048;
     
-    // Supported models (simplified)
-    this.supportedModels = [
-      'text-embedding-3-small',
-      'text-embedding-3-large',
-      'text-embedding-ada-002',
-      'openai-compatible-1536' // Virtual model for 1536 dimensions
-    ];
+    if (!this.apiKey) {
+      throw new Error('OpenAI API key is required. Set OPENAI_API_KEY environment variable.');
+    }
+
+    // Initialize OpenAI client
+    this.openai = new OpenAI({
+      apiKey: this.apiKey
+    });
     
-    // Model configurations - updated to support 1536 dimensions
-    this.modelConfigs = {
-      'text-embedding-3-small': { dimensions: 1536, maxLength: 8191 },
-      'text-embedding-3-large': { dimensions: 3072, maxLength: 8191 },
-      'text-embedding-ada-002': { dimensions: 1536, maxLength: 8191 },
-      'openai-compatible-1536': { dimensions: 1536, maxLength: 8191 }
-    };
-    
-    console.log(`LocalTransformersProvider initialized with model: ${this.model}`);
+    logger.info(`OpenAI Embedding Provider initialized with model: ${this.model}`);
   }
 
   /**
-   * Generate embedding for a single text
+   * Generate embedding for a single text using OpenAI API
    */
   async generateEmbedding(text, options = {}) {
     const startTime = Date.now();
     
     try {
-      const {
-        model = this.model,
-        normalize = true,
-        maxLength = 512
-      } = options;
-
       // Validate input
       if (!text || typeof text !== 'string') {
         throw new Error('Text input is required and must be a string');
       }
 
-      // Truncate text if too long
-      const truncatedText = text.length > maxLength 
-        ? text.substring(0, maxLength) 
-        : text;
+      // Check token limits (rough estimation)
+      const estimatedTokens = this.estimateTokens(text);
+      if (estimatedTokens > this.maxTokens) {
+        throw new Error(`Text too long: ${estimatedTokens} tokens exceeds limit of ${this.maxTokens}`);
+      }
 
-      // Since we don't have @xenova/transformers installed yet,
-      // we'll create a deterministic "embedding" based on text content
-      // In a real implementation, this would use actual transformer models
-      const embedding = this.generateDeterministicEmbedding(truncatedText, model);
+      // Make API request using OpenAI client
+      const response = await this.openai.embeddings.create({
+        input: text,
+        model: this.model
+      });
+
+      // Extract embedding data
+      const embeddingData = response.data[0];
+      const usage = response.usage;
 
       const result = {
-        vector: normalize ? this.normalizeVector(embedding) : embedding,
-        model: model,
+        vector: embeddingData.embedding,
+        model: this.model,
         usage: {
-          promptTokens: this.estimateTokens(truncatedText),
-          totalTokens: this.estimateTokens(truncatedText)
+          promptTokens: usage.prompt_tokens,
+          totalTokens: usage.total_tokens
         },
         metadata: {
-          provider: 'local-transformers',
+          provider: 'openai-local',
           textLength: text.length,
-          truncated: text.length > maxLength,
+          estimatedCost: this.estimateCost(usage.total_tokens),
           processingTime: Date.now() - startTime
         }
       };
 
-      logger.debug('Local embedding generated', {
-        model,
+      logger.debug('OpenAI embedding generated', {
+        model: this.model,
         dimensions: result.vector.length,
         textLength: text.length,
+        tokens: usage.total_tokens,
         processingTime: result.metadata.processingTime
       });
 
@@ -89,105 +84,99 @@ class LocalTransformersProvider {
     } catch (error) {
       logError(error, {
         operation: 'generateEmbedding',
-        provider: 'local-transformers',
-        model: options.model || this.model
+        provider: 'openai-local',
+        model: this.model,
+        textLength: text?.length
       });
       throw error;
     }
   }
 
   /**
-   * Generate embeddings for multiple texts
+   * Generate embeddings for multiple texts in batch
    */
   async generateBatchEmbeddings(texts, options = {}) {
-    const results = [];
+    const startTime = Date.now();
     
-    for (let i = 0; i < texts.length; i++) {
-      try {
-        const result = await this.generateEmbedding(texts[i], options);
-        results.push(result);
-      } catch (error) {
-        logError(error, {
-          operation: 'generateBatchEmbedding',
-          index: i,
-          text: texts[i]?.substring(0, 100)
-        });
-        throw error;
+    try {
+      if (!Array.isArray(texts) || texts.length === 0) {
+        throw new Error('Texts must be a non-empty array');
       }
-    }
-    
-    return results;
-  }
 
-  /**
-   * Generate deterministic embedding based on text content
-   * This is a placeholder - real implementation would use transformer models
-   */
-  generateDeterministicEmbedding(text, model) {
-    const config = this.modelConfigs[model] || this.modelConfigs['text-embedding-3-small'];
-    const dimensions = config.dimensions;
-    const embedding = new Array(dimensions);
-    
-    // Create a deterministic but somewhat realistic embedding
-    // based on character frequencies and n-grams
-    const words = text.toLowerCase().split(/\s+/);
-    const chars = text.toLowerCase().split('');
-    
-    // Initialize with small random values based on text hash
-    let seed = this.hashString(text);
-    for (let i = 0; i < dimensions; i++) {
-      seed = (seed * 9301 + 49297) % 233280;
-      embedding[i] = (seed / 233280 - 0.5) * 0.1; // Small initial values
-    }
-    
-    // Add word-based features
-    words.forEach((word, wordIndex) => {
-      const wordHash = this.hashString(word);
-      for (let i = 0; i < Math.min(word.length, dimensions); i++) {
-        const idx = (wordHash + i * wordIndex) % dimensions;
-        embedding[idx] += word.charCodeAt(i % word.length) / 10000;
+      const results = [];
+      const batchSize = options.batchSize || Math.min(this.maxBatchSize, 100);
+
+      // Process in batches to respect API limits
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const batch = texts.slice(i, i + batchSize);
+        
+        try {
+          // Make API request using OpenAI client
+          const response = await this.openai.embeddings.create({
+            input: batch,
+            model: this.model
+          });
+
+          // Process results
+          response.data.forEach((embeddingData, index) => {
+            results.push({
+              vector: embeddingData.embedding,
+              model: this.model,
+              usage: {
+                promptTokens: Math.round(response.usage.prompt_tokens / batch.length),
+                totalTokens: Math.round(response.usage.total_tokens / batch.length)
+              },
+              metadata: {
+                provider: 'openai-local',
+                textLength: batch[index].length,
+                batchIndex: i + index,
+                processingTime: Date.now() - startTime
+              }
+            });
+          });
+
+        } catch (batchError) {
+          // If batch fails, try individual processing
+          logger.warn('Batch processing failed, falling back to individual requests', {
+            batchSize: batch.length,
+            error: batchError.message
+          });
+
+          for (let j = 0; j < batch.length; j++) {
+            try {
+              const result = await this.generateEmbedding(batch[j]);
+              results.push(result);
+            } catch (individualError) {
+              logError(individualError, {
+                operation: 'generateBatchEmbedding_individual',
+                index: i + j,
+                text: batch[j]?.substring(0, 100)
+              });
+              throw individualError;
+            }
+          }
+        }
       }
-    });
-    
-    // Add character bigram features
-    for (let i = 0; i < chars.length - 1; i++) {
-      const bigram = chars[i] + chars[i + 1];
-      const bigramHash = this.hashString(bigram);
-      const idx = bigramHash % dimensions;
-      embedding[idx] += 0.01;
-    }
-    
-    // Add positional encoding-like features
-    for (let i = 0; i < dimensions; i++) {
-      const pos = i / dimensions;
-      embedding[i] += Math.sin(pos * text.length / 100) * 0.05;
-      embedding[i] += Math.cos(pos * words.length / 10) * 0.05;
-    }
-    
-    return embedding;
-  }
 
-  /**
-   * Normalize vector to unit length
-   */
-  normalizeVector(vector) {
-    const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-    if (magnitude === 0) return vector;
-    
-    return vector.map(val => val / magnitude);
-  }
+      const duration = Date.now() - startTime;
+      
+      logger.info('OpenAI batch embedding completed', {
+        model: this.model,
+        totalTexts: texts.length,
+        successful: results.length,
+        duration
+      });
 
-  /**
-   * Simple string hash function
-   */
-  hashString(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+      return results;
+
+    } catch (error) {
+      logError(error, {
+        operation: 'generateBatchEmbeddings',
+        provider: 'openai-local',
+        textCount: texts?.length
+      });
+      throw error;
     }
-    return Math.abs(hash);
   }
 
   /**
@@ -199,14 +188,22 @@ class LocalTransformersProvider {
   }
 
   /**
-   * Get supported models
+   * Estimate cost based on token usage
+   */
+  estimateCost(tokens) {
+    // text-embedding-3-small costs $0.00002 per 1K tokens
+    return (tokens / 1000) * 0.00002;
+  }
+
+  /**
+   * Get supported models (only text-embedding-3-small)
    */
   getSupportedModels() {
-    return this.supportedModels.map(model => ({
-      name: model,
-      dimensions: this.modelConfigs[model]?.dimensions || 1536,
-      maxLength: this.modelConfigs[model]?.maxLength || 512
-    }));
+    return [{
+      name: this.model,
+      dimensions: this.dimensions,
+      maxLength: this.maxTokens
+    }];
   }
 
   /**
@@ -220,50 +217,16 @@ class LocalTransformersProvider {
         status: 'healthy',
         model: this.model,
         dimensions: testResult.vector.length,
-        lastChecked: Date.now(),
-        provider: 'local-transformers'
+        lastChecked: new Date().toISOString(),
+        provider: 'openai-local'
       };
     } catch (error) {
       return {
         status: 'unhealthy',
         error: error.message,
-        lastChecked: Date.now(),
-        provider: 'local-transformers'
+        lastChecked: new Date().toISOString(),
+        provider: 'openai-local'
       };
-    }
-  }
-
-  /**
-   * Load transformer model (placeholder for real implementation)
-   */
-  async loadModel(modelName = this.model) {
-    try {
-      // In a real implementation, this would load the actual transformer model
-      // using @xenova/transformers or similar library
-      
-      logger.info(`Loading local transformer model: ${modelName}`);
-      
-      // Simulate loading time
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      this.model = modelName;
-      this.dimensions = this.modelConfigs[modelName]?.dimensions || 1536;
-      this.isLoaded = true;
-      
-      logger.info(`Local transformer model loaded: ${modelName}, dimensions: ${this.dimensions}`);
-      
-      return {
-        success: true,
-        model: modelName,
-        dimensions: this.dimensions
-      };
-      
-    } catch (error) {
-      logError(error, {
-        operation: 'loadModel',
-        model: modelName
-      });
-      throw error;
     }
   }
 
@@ -274,12 +237,16 @@ class LocalTransformersProvider {
     return {
       currentModel: this.model,
       dimensions: this.dimensions,
-      isLoaded: this.isLoaded,
-      supportedModels: this.supportedModels,
+      isLoaded: true,
+      supportedModels: [this.model],
       features: {
         batchProcessing: true,
         normalization: this.supportsNormalization,
         configurableDimensions: this.supportsDimensions
+      },
+      limits: {
+        maxTokens: this.maxTokens,
+        maxBatchSize: this.maxBatchSize
       }
     };
   }

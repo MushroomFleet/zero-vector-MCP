@@ -38,8 +38,6 @@
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.4",
     "openai": "^4.20.1",
-    "@xenova/transformers": "^2.8.0",
-    "ml-matrix": "^6.10.4",
     "redis": "^4.6.12",
     "rate-limit-redis": "^4.2.0",
     "validator": "^13.11.0",
