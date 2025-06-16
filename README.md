@@ -74,6 +74,7 @@ cd zero-vector/server
 npm install
 npm run setup:database
 npm run generate:api-key  # Generate API key for MCP
+cp env.example .env  # Add your Open AI API key
 npm start
 
 # 2. Set up the MCP server (in a new terminal)
