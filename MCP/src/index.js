@@ -171,11 +171,17 @@ async function startServer() {
 // Handle CLI arguments for standalone testing
 if (process.argv.includes('--test-connection')) {
   // Test connection mode
-  import('./tools/utilities.js').then(({ testConnection }) => {
-    testConnection.handler().then(result => {
-      console.log(result.content[0].text);
-      process.exit(result.isError ? 1 : 0);
-    });
+  import('./tools/utilities.js').then(({ utilityTools }) => {
+    const testConnection = utilityTools.find(tool => tool.name === 'test_connection');
+    if (testConnection) {
+      testConnection.handler().then(result => {
+        console.log(result.content[0].text);
+        process.exit(result.isError ? 1 : 0);
+      });
+    } else {
+      console.log('❌ test_connection tool not found');
+      process.exit(1);
+    }
   });
 } else if (process.argv.includes('--list-tools')) {
   // List tools mode
