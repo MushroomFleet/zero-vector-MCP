@@ -73,8 +73,11 @@ router.post('/', asyncHandler(async (req, res) => {
     temperature = 0.7,
     maxTokens = 2048,
     embeddingProvider = 'local',
-    embeddingModel = 'all-MiniLM-L6-v2'
+    embeddingModel
   } = req.body;
+
+  // Set appropriate default model based on provider
+  const defaultEmbeddingModel = embeddingModel || (embeddingProvider === 'openai' ? 'text-embedding-3-small' : 'text-embedding-3-small');
 
   // Validate required fields
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -111,7 +114,7 @@ router.post('/', asyncHandler(async (req, res) => {
         temperature,
         maxTokens,
         embeddingProvider,
-        embeddingModel
+        embeddingModel: defaultEmbeddingModel
       },
       maxMemorySize,
       memoryDecayTime

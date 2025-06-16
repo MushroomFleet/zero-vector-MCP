@@ -7,7 +7,7 @@ const { logger, logError } = require('../../utils/logger');
  */
 class LocalTransformersProvider {
   constructor(options = {}) {
-    this.model = options.model || 'all-MiniLM-L6-v2';
+    this.model = options.model || 'text-embedding-3-small';
     // Default to 1536 dimensions to match OpenAI embeddings
     this.dimensions = options.dimensions || 1536;
     this.supportsDimensions = true; // Enable dimension configuration
@@ -17,17 +17,17 @@ class LocalTransformersProvider {
     
     // Supported models (simplified)
     this.supportedModels = [
-      'all-MiniLM-L6-v2',
-      'all-mpnet-base-v2',
-      'sentence-transformers/paraphrase-MiniLM-L6-v2',
+      'text-embedding-3-small',
+      'text-embedding-3-large',
+      'text-embedding-ada-002',
       'openai-compatible-1536' // Virtual model for 1536 dimensions
     ];
     
     // Model configurations - updated to support 1536 dimensions
     this.modelConfigs = {
-      'all-MiniLM-L6-v2': { dimensions: 1536, maxLength: 512 }, // Updated to 1536
-      'all-mpnet-base-v2': { dimensions: 1536, maxLength: 512 }, // Updated to 1536
-      'sentence-transformers/paraphrase-MiniLM-L6-v2': { dimensions: 1536, maxLength: 512 }, // Updated to 1536
+      'text-embedding-3-small': { dimensions: 1536, maxLength: 8191 },
+      'text-embedding-3-large': { dimensions: 3072, maxLength: 8191 },
+      'text-embedding-ada-002': { dimensions: 1536, maxLength: 8191 },
       'openai-compatible-1536': { dimensions: 1536, maxLength: 8191 }
     };
     
@@ -124,7 +124,7 @@ class LocalTransformersProvider {
    * This is a placeholder - real implementation would use transformer models
    */
   generateDeterministicEmbedding(text, model) {
-    const config = this.modelConfigs[model] || this.modelConfigs['all-MiniLM-L6-v2'];
+    const config = this.modelConfigs[model] || this.modelConfigs['text-embedding-3-small'];
     const dimensions = config.dimensions;
     const embedding = new Array(dimensions);
     
